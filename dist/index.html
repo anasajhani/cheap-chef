@@ -130,6 +130,18 @@
     </section>
   </main>
 
+  <dialog id="recipeDialog" class="recipe-dialog" aria-labelledby="recipeTitle">
+    <div class="recipe-dialog-head">
+      <div><p class="eyebrow" data-i18n="recipeLabel">STEP-BY-STEP RECIPE</p><h2 id="recipeTitle"></h2></div>
+      <button id="closeRecipe" class="dialog-close" type="button" aria-label="Close recipe">×</button>
+    </div>
+    <div id="recipeMeta" class="recipe-meta"></div>
+    <div class="recipe-columns">
+      <section><h3 data-i18n="ingredients">Ingredients</h3><ul id="recipeIngredients" class="ingredient-list"></ul></section>
+      <section><h3 data-i18n="instructions">Instructions</h3><ol id="recipeSteps" class="recipe-steps"></ol></section>
+    </div>
+  </dialog>
+
   <footer><span>Cheap Chef</span><p data-i18n="footer">A calmer way to feed the week.</p></footer>
 </body>
 </html>
