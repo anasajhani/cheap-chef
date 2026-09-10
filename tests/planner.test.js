@@ -11,3 +11,15 @@ test('swaps recompute package costs and preserve constraints',()=>{const p={...d
 test('all recipes reference existing ingredients with chronological directions',()=>{for(const r of recipes){assert.ok(r.steps.length>=4);assert.ok(r.nutrition.kcal>0);for(const id of Object.keys(r.items))assert.ok(ingredients[id]);}});
 test('AI unavailable mode is explicit and makes no network request',async()=>{const key=process.env.OPENAI_API_KEY,model=process.env.OPENAI_MODEL;delete process.env.OPENAI_API_KEY;delete process.env.OPENAI_MODEL;try{const result=await askChef({},()=>{throw Error('must not call')});assert.equal(result.mode,'unavailable');assert.equal(result.action,'none')}finally{if(key)process.env.OPENAI_API_KEY=key;if(model)process.env.OPENAI_MODEL=model;}});
 test('store distances use actual coordinates',()=>{assert.equal(distance(40,-83,40,-83),0);assert.ok(distance(40,-83,40.1,-83)>11000);});
+
+test('AI integration validates structured provider responses and keeps actions pending',async()=>{
+ const key=process.env.OPENAI_API_KEY,model=process.env.OPENAI_MODEL;
+ process.env.OPENAI_API_KEY='test-only';process.env.OPENAI_MODEL='test-only';
+ try{
+  let sent;
+  const action={reply:'Replace the first meal?',action:'swap',mealIndex:0,budget:null,minutes:null,cuisines:null};
+  const result=await askChef({message:'Swap meal one',history:[],profile:defaults,plan:null,pantry:{}},async(url,init)=>{sent=JSON.parse(init.body);return {ok:true,json:async()=>({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(action)}]}]})}});
+  assert.equal(result.action,'swap');assert.equal(result.mode,'ai');assert.equal(sent.store,false);assert.equal(sent.text.format.strict,true);
+  await assert.rejects(()=>askChef({message:'Hi',history:[],profile:defaults,plan:null,pantry:{}},async()=>({ok:true,json:async()=>({status:'incomplete'})})),/incomplete/);
+ }finally{if(key)process.env.OPENAI_API_KEY=key;else delete process.env.OPENAI_API_KEY;if(model)process.env.OPENAI_MODEL=model;else delete process.env.OPENAI_MODEL;}
+});
