@@ -1,4 +1,4 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwind from '@tailwindcss/vite';
-export default defineConfig({root: 'apps/web', plugins: [react(), tailwind()], server: {host: '127.0.0.1', proxy: {'/api': 'http://127.0.0.1:4000'}}, build: {outDir: 'build', emptyOutDir: true}});
+export default defineConfig({root: 'apps/web', plugins: [react(), tailwind()], server: {host: '127.0.0.1', proxy: {'/api': 'http://127.0.0.1:4000'}}, build: {outDir: '../../dist/client', emptyOutDir: true}});
