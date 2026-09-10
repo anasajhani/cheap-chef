@@ -1,116 +1,71 @@
-# Cheap Chef
+# Cheap Chef — rebuilt beta
 
-Cheap Chef is a full-stack, budget-first meal planning application for students, families, and anyone who wants a practical week of food without overspending. It turns a user's location, preferred stores, budget, pantry, equipment, diet, allergies, cuisine preferences, and nutrition goal into a saved seven-day plan and optimized grocery list.
+React/Tailwind client and Express API with persistent PostgreSQL accounts, profiles, pantry quantities, weekly plans and chat history. This rebuild starts from the recovered static prototype. It is **not** a recovery of the missing 29 files and is not claimed production-ready.
 
-The original static prototype remains in `dist/`. The production application lives in `apps/web` and `apps/api` and is the version used by Docker.
+## Run locally
 
-## Product features
+Node 22+ and pnpm 11.19.0 are required.
 
-- Email-and-password registration with secure, HTTP-only sessions
-- United States and Canada location profiles
-- Regional retailer choices, including Costco and Sam's Club
-- Weight, height, and lose/maintain/gain targets
-- Strict weekly budget validation in USD or CAD
-- Equipment- and time-aware recipe selection
-- Vegan, vegetarian, halal, kosher, and allergen filters
-- Cuisine preferences and English/French interface settings
-- Persistent PostgreSQL pantry and staple quantities
-- Automatic removal of pantry stock from the grocery list
-- No meal repeats from the immediately previous week
-- Balanced meal cards with calories, macros, pricing, plate imagery, and cooking steps
-- Bulk-purchase guidance for wholesale clubs
-- Responsive desktop and mobile interface
-
-> Prices and nutrition values are planning estimates. A retail data provider is required before making real-time price or availability claims. Nutrition and allergy outputs must receive professional review before a broad public launch.
-
-## Architecture
-
-```text
-cheap-chef/
-├── apps/
-│   ├── web/                 React + Vite + Tailwind UI
-│   └── api/                 Express API and planning engine
-│       ├── sql/             PostgreSQL schema
-│       └── src/             Auth, persistence, recipes, and planner
-├── dist/                    Existing hosted static prototype
-├── Dockerfile               Multi-stage production container
-├── docker-compose.yml       App + PostgreSQL local stack
-└── .github/workflows/ci.yml Build and test automation
-```
-
-## Run with Docker
-
-Requirements: Docker Desktop or Docker Engine with Compose.
-
-1. Copy the environment template and replace the JWT secret:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Start the app and database:
-
-   ```bash
-   docker compose up --build
-   ```
-
-3. Open `http://localhost:4000`.
-
-PostgreSQL data is retained in the `cheap-chef-data` volume.
-
-## Run without Docker
-
-Requirements: Node.js 20+ and PostgreSQL 15+.
-
-```bash
-npm install
+```sh
+pnpm install --frozen-lockfile --ignore-scripts
 cp .env.example .env
-npm run dev
+pnpm dev
 ```
 
-The web client runs at `http://localhost:5173` and proxies API requests to `http://localhost:4000`.
+Open the Vite address printed by the command (normally http://localhost:5173). The API listens on port 4000. With DATABASE_URL empty, embedded PostgreSQL (PGlite) persists to `.data/`; do not delete that directory unless you intend to erase local accounts. A PostgreSQL server can be supplied via DATABASE_URL instead.
 
-## Verify
-
-```bash
-npm run check
+```sh
+pnpm check
+pnpm build
+# Set WEB_ORIGIN=http://localhost:4000 when serving the production build locally.
+pnpm start
 ```
 
-This builds the React application and runs the meal planner's automated tests, including budget enforcement, pantry exclusions, nutrition-goal adjustments, and week-to-week recipe rotation.
+## Container
 
-## Environment variables
+Set POSTGRES_PASSWORD to a new strong secret in .env, then `docker compose up --build`. Set WEB_ORIGIN=http://localhost:4000 and COOKIE_SECURE=false for local HTTP testing. For production use HTTPS, COOKIE_SECURE=true, an exact WEB_ORIGIN, backups, and secret management. The local Compose port is bound only to loopback. Container execution is subject to verification in CI; Docker is not installed on the rebuilding machine.
 
-| Variable | Purpose |
-|---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | Random secret of at least 32 characters |
-| `PORT` | API and production web port; defaults to `4000` |
-| `WEB_ORIGIN` | Allowed browser origin for credentialed API requests |
-| `COOKIE_SECURE` | Set to `true` when the production site uses HTTPS |
-| `VITE_API_URL` | Optional API origin for separate frontend hosting |
+## Implemented behavior
 
-## Production launch checklist
+- Email/password registration and login; scrypt password hashes, random expiring HTTP-only sessions, origin checks and rate limits.
+- Persistent profile, pantry, weekly plan and conversation history; password-confirmed account deletion.
+- US/Canada country and location entry, USD/CAD sample package prices.
+- Explicit device geolocation or city/postal-code search through OpenStreetMap Nominatim and Overpass. Results are actual mapped branches with coordinates, available addresses, straight-line distance and selection. Coverage is incomplete; map entries are not guaranteed current.
+- Save preferred branches and warehouse memberships. Branch selections appear in plans and AI context.
+- Package-rounded grocery costs after pantry deductions; reject plans over the estimated budget rather than quietly exceeding it.
+- Strict recipe-level equipment, cooking time, diet and declared-allergen filters; no recipe IDs repeated within or from the immediately previous generated week. Recipe variants share base ingredients and preparation methods.
+- Scaled meal portions with approximate calories/macros; sequential cooking mode; meal swaps recompute shopping costs.
+- Explicitly recording purchases adds pack quantities to pantry; marking a meal cooked deducts its quantities. Duplicate purchase/cooking updates are rejected. Pantry and plan updates commit transactionally.
+- Server-side OpenAI Responses integration with structured actions, confirmation before changes, and server revalidation. No fake AI responses when disconnected.
 
-- Replace the sample price factors with licensed retailer or commerce API data.
-- Add verified transactional email for account verification and password recovery.
-- Set `COOKIE_SECURE=true`, rotate all secrets, and use managed PostgreSQL with backups.
-- Put the container behind HTTPS and add centralized logs and uptime monitoring.
-- Complete privacy, terms, subscription, tax, nutrition, allergy, and food-safety reviews.
-- Run accessibility, load, penetration, and mobile device testing.
-- Use a CDN or owned media storage for a larger recipe image library.
+## AI setup and cost
 
-## GitHub setup
+Set OPENAI_API_KEY and OPENAI_MODEL in server environment variables to enable chat. Choose a model supporting Responses structured outputs. Never put keys in VITE variables or client files. Chat sends meal preferences, recipe context, pantry and recent conversation to OpenAI; it omits email and precise store addresses from supplied context. User-written messages may themselves contain personal information. Requests use store:false. Provider retention policies still apply. AI_DAILY_LIMIT defaults to 20 requests per account, and a short-term rate limit also applies. Set provider-level spend controls before enabling public access. No AI provider account was purchased or live paid AI call made during this rebuild. Live AI behavior requires configuration and verification.
 
-The repository is already initialized and committed locally. If you are connecting it manually:
+## Location service operation
 
-```bash
-git remote add origin https://github.com/YOUR-USERNAME/cheap-chef.git
-git branch -M main
-git push -u origin main
-```
+Public OpenStreetMap services are intended for modest use. Geocoding is serialized at no more than one request per 1.1 seconds per process; results are cached and only fetched on explicit search. Attribution is displayed. No autocomplete or background tracking. Nominatim/Overpass endpoints and User-Agent are configurable in .env. For a public service at scale, arrange suitable hosted/self-hosted map infrastructure. Run only one API process with these in-memory queues/caches and per-account mutation locks; multi-instance coordination is not implemented.
 
-Keep `.env` private. It is ignored by Git and must never be committed.
+## Important limitations
 
-## License
+- No live grocery prices, inventory, branch-specific pricing, or warehouse bulk-price optimization. Sample USD and CAD prices are illustrative and exclude taxes/deposits/membership fees. No real checkout-price guarantee.
+- All cards reuse the recovered illustrative meal-prep image, clearly labeled. Dedicated photography of each recipe is outstanding.
+- Recipe catalog uses structured variations, not professionally reviewed recipes. Restrictive cuisine/equipment choices may not have enough recipes for two different weeks. The planner then reports that limitation rather than ignoring constraints.
+- Halal/kosher use plant-based filtering, not certification. Product labels/cross-contact/certification still require checking. Soy/wheat/mustard are explicitly modeled; catalog metadata needs expert review before commercial use.
+- Nutrition is approximate, with a generic adult baseline, not a medical prescription. No age, sex or activity-specific estimation. Professional nutrition and allergy review is outstanding.
+- Email verification, password reset, subscriptions, admin tools, production security review, automated backups, multi-instance locking and load testing are not implemented.
+- Current rebuilt UI is English. The older static prototype retains its original languages.
+- The old live Sites website is unchanged. `.openai/hosting.json` continues to point at `dist/`, the original static site. The rebuilt server application requires a Node/PostgreSQL host; publishing the static folder does not deploy these new features.
 
-All rights reserved. Add an open-source license only if you intentionally want other people to reuse the source code.
+## Verification
+
+Run `pnpm check` for the API integration and planner tests plus production frontend build. Tests cover authentication, account isolation, persistence, purchase/cooking lifecycle, package rounding, pantry deductions, week rotation, constraint rejection, swaps, and disconnected AI behavior. Further results and outstanding checks are recorded in VERIFICATION.md.
+
+## References
+
+- https://developers.openai.com/api/docs/guides/structured-outputs
+- https://operations.osmfoundation.org/policies/nominatim/
+- https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL
+- https://www.openstreetmap.org/copyright
+
+All rights reserved. No open-source reuse license is granted.

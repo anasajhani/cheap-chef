@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Build a practical weekly meal plan and grocery list around your budget, store, schedule, and dietary needs.">
+  <title>Cheap Chef — Eat well. Spend smart.</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#top" aria-label="Cheap Chef home">
+      <span class="brand-mark" aria-hidden="true">CC</span>
+      <span>Cheap Chef</span>
+    </a>
+    <div class="topbar-actions">
+      <span class="save-note" id="saveNote">Your choices stay on this device</span>
+      <button class="icon-button" id="themeButton" type="button" aria-label="Switch color theme">☼</button>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="intro">
+      <div class="intro-copy">
+        <p class="eyebrow" data-i18n="eyebrow">THE WEEKLY FOOD FIX</p>
+        <h1 data-i18n="title">Eat well.<br><em>Spend smart.</em></h1>
+        <p class="lede" data-i18n="lede">Tell us what you have. We’ll turn it into seven days of realistic meals and one tidy grocery list.</p>
+        <div class="trust-row">
+          <span><b>7</b> days planned</span>
+          <span><b>1</b> smart list</span>
+          <span><b>$</b> budget-first</span>
+        </div>
+      </div>
+      <figure class="food-photo">
+        <img src="assets/meal-prep.png" alt="Affordable weekly meal prep with colorful rice bowls, pasta, vegetables, eggs, and tortillas">
+        <figcaption><strong>Less waste.</strong> Shared ingredients work across the week.</figcaption>
+      </figure>
+    </section>
+
+    <section class="planner-shell" aria-labelledby="plannerTitle">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow" data-i18n="step">YOUR KITCHEN, YOUR RULES</p>
+          <h2 id="plannerTitle" data-i18n="plannerTitle">Build my week</h2>
+        </div>
+        <span class="step-pill">6 quick choices</span>
+      </div>
+
+      <form id="plannerForm">
+        <div class="form-grid">
+          <fieldset class="field-card budget-card">
+            <legend><span>01</span> <b data-i18n="budget">Weekly budget</b></legend>
+            <div class="money-input"><span>$</span><input id="budget" type="number" min="20" max="300" step="5" value="60" required aria-describedby="budgetHelp"></div>
+            <input id="budgetRange" class="range" type="range" min="20" max="150" step="5" value="60" aria-label="Weekly budget slider">
+            <div class="range-labels"><span>$20</span><span>$150+</span></div>
+            <p id="budgetHelp" class="field-help" data-i18n="budgetHelp">For one person, before tax.</p>
+          </fieldset>
+
+          <fieldset class="field-card">
+            <legend><span>02</span> <b data-i18n="store">Grocery store</b></legend>
+            <div class="choice-row store-row">
+              <label class="choice-tile"><input type="radio" name="store" value="Walmart" checked><span class="store-icon blue">W</span><b>Walmart</b></label>
+              <label class="choice-tile"><input type="radio" name="store" value="Target"><span class="store-icon red">◎</span><b>Target</b></label>
+              <label class="choice-tile"><input type="radio" name="store" value="Kroger"><span class="store-icon navy">K</span><b>Kroger</b></label>
+            </div>
+          </fieldset>
+
+          <fieldset class="field-card">
+            <legend><span>03</span> <b data-i18n="time">Prep time per meal</b></legend>
+            <div class="choice-row compact">
+              <label class="chip"><input type="radio" name="time" value="20"><span>≤ 20 min</span></label>
+              <label class="chip"><input type="radio" name="time" value="40" checked><span>≤ 40 min</span></label>
+              <label class="chip"><input type="radio" name="time" value="60"><span>≤ 60 min</span></label>
+            </div>
+          </fieldset>
+
+          <fieldset class="field-card equipment-card">
+            <legend><span>04</span> <b data-i18n="equipment">Equipment I have</b></legend>
+            <div class="choice-row compact">
+              <label class="chip"><input type="checkbox" name="equipment" value="stove" checked><span>♨ <i data-i18n="stove">Stove</i></span></label>
+              <label class="chip"><input type="checkbox" name="equipment" value="oven" checked><span>▣ <i data-i18n="oven">Oven</i></span></label>
+              <label class="chip"><input type="checkbox" name="equipment" value="microwave" checked><span>▤ <i data-i18n="microwave">Microwave</i></span></label>
+              <label class="chip"><input type="checkbox" name="equipment" value="airfryer" checked><span>◉ <i data-i18n="airfryer">Air fryer</i></span></label>
+            </div>
+          </fieldset>
+
+          <fieldset class="field-card">
+            <legend><span>05</span> <b data-i18n="meals">Meals each day</b></legend>
+            <div class="segmented" role="radiogroup" aria-label="Meals per day">
+              <label><input type="radio" name="meals" value="1"><span>1</span></label>
+              <label><input type="radio" name="meals" value="2"><span>2</span></label>
+              <label><input type="radio" name="meals" value="3" checked><span>3</span></label>
+              <label><input type="radio" name="meals" value="4"><span>4</span></label>
+            </div>
+          </fieldset>
+
+          <fieldset class="field-card">
+            <legend><span>06</span> <b data-i18n="needs">Food needs</b></legend>
+            <div class="select-row">
+              <label><span data-i18n="diet">Diet</span><select id="diet"><option value="none">No preference</option><option value="vegetarian">Vegetarian</option><option value="vegan">Vegan</option><option value="gluten-free">Gluten-free</option><option value="dairy-free">Dairy-free</option></select></label>
+              <label><span data-i18n="allergy">Allergy</span><select id="allergy"><option value="none">None</option><option value="nuts">Nuts</option><option value="dairy">Dairy</option><option value="gluten">Gluten</option><option value="eggs">Eggs</option></select></label>
+              <label><span data-i18n="language">Language</span><select id="language"><option value="en">English</option><option value="es">Español</option><option value="ar">العربية</option></select></label>
+            </div>
+          </fieldset>
+        </div>
+
+        <div class="generate-bar">
+          <div><strong id="summaryBudget">$60 budget</strong><span id="summaryDetails">Walmart · 3 meals/day · up to 40 min</span></div>
+          <button class="primary-button" type="submit"><span data-i18n="generate">Cook up my plan</span><b aria-hidden="true">→</b></button>
+        </div>
+      </form>
+    </section>
+
+    <section id="results" class="results" aria-live="polite" hidden>
+      <div class="results-head">
+        <div><p class="eyebrow" data-i18n="ready">YOUR WEEK IS READY</p><h2 data-i18n="planTitle">Good food, accounted for.</h2></div>
+        <div class="budget-meter"><div><span data-i18n="estimated">Estimated total</span><strong id="estimatedTotal">$0.00</strong></div><div class="meter-track"><span id="meterFill"></span></div><small id="remainingText"></small></div>
+      </div>
+      <div class="result-tabs" role="tablist">
+        <button role="tab" aria-selected="true" aria-controls="mealPanel" id="mealTab" data-i18n="mealPlan">Meal plan</button>
+        <button role="tab" aria-selected="false" aria-controls="groceryPanel" id="groceryTab"><span data-i18n="groceryList">Grocery list</span> <b id="itemCount">0</b></button>
+      </div>
+      <div id="mealPanel" role="tabpanel" aria-labelledby="mealTab"><div id="weekGrid" class="week-grid"></div></div>
+      <div id="groceryPanel" role="tabpanel" aria-labelledby="groceryTab" hidden>
+        <div class="grocery-toolbar"><p id="storeNote"></p><button id="printButton" class="secondary-button" type="button" data-i18n="print">Print list</button></div>
+        <div id="groceryGrid" class="grocery-grid"></div>
+      </div>
+      <p class="price-note" data-i18n="priceNote">Price estimates vary by location and date. Check your store before purchasing.</p>
+    </section>
+  </main>
+
+  <dialog id="recipeDialog" class="recipe-dialog" aria-labelledby="recipeTitle">
+    <div class="recipe-dialog-head">
+      <div><p class="eyebrow" data-i18n="recipeLabel">STEP-BY-STEP RECIPE</p><h2 id="recipeTitle"></h2></div>
+      <button id="closeRecipe" class="dialog-close" type="button" aria-label="Close recipe">×</button>
+    </div>
+    <div id="recipeMeta" class="recipe-meta"></div>
+    <div class="recipe-columns">
+      <section><h3 data-i18n="ingredients">Ingredients</h3><ul id="recipeIngredients" class="ingredient-list"></ul></section>
+      <section><h3 data-i18n="instructions">Instructions</h3><ol id="recipeSteps" class="recipe-steps"></ol></section>
+    </div>
+  </dialog>
+
+  <footer><span>Cheap Chef</span><p data-i18n="footer">A calmer way to feed the week.</p></footer>
+</body>
+</html>
