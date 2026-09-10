@@ -12,7 +12,10 @@ const actionSchema=z.object({reply:z.string().max(5000),action:z.enum(['none','g
 async function digest(value){return toHex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)));}
 async function passwordHash(password,salt=crypto.getRandomValues(new Uint8Array(16))){
   const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']);
-  const hash=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations:210000},key,256);
+  const first=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations:100000},key,256);
+  const secondKey=await crypto.subtle.importKey('raw',first,'PBKDF2',false,['deriveBits']);
+  const secondSalt=new Uint8Array(await crypto.subtle.digest('SHA-256',new Uint8Array([...salt,67,104,101,97,112,67,104,101,102])));
+  const hash=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:secondSalt,iterations:100000},secondKey,256);
   return `${toHex(salt)}:${toHex(hash)}`;
 }
 async function passwordMatches(password,stored){
