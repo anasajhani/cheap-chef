@@ -8,10 +8,11 @@
 
 - GitHub Actions run 34494734094 passed dependency installation, the test suite, production frontend build and Docker image build for commit 5e7fc6ce01b495cd1506ba793ecd76f12d1ec3e7.
 
+- GitHub Actions run 34495032965 passed all nine tests, the frontend build, app + PostgreSQL startup, and the packaged registration → plan → purchase → cook → account deletion smoke test for commit 7db644c8fa3f5d76d998698d934569f437d5e78a.
+
 ## Not yet verified / configured
 
 - Paid OpenAI calls: no API key or selected model configured. No charges incurred.
-- Docker container runtime has not been exercised against a production PostgreSQL server. The container image build passed in GitHub Actions.
 - Browser interaction/accessibility review and mobile device testing.
 - Production deployment of the new Express/PostgreSQL app. The existing live Sites page still uses the recovered static prototype.
 - Live store pricing, stock and bulk-price optimization: no retailer data provider configured.
