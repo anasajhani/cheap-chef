@@ -1,5 +1,11 @@
 # Cheap Chef — rebuilt beta
 
+## Meal variety update — September 22, 2026
+
+The hosted Worker and React app now offer Indian and British cuisine filters, savory lunch/dinner slots, named dish families, and protein swaps (chicken, turkey, lean beef, white fish, tofu and legumes). Cuisine adaptations are labeled. New weeks exclude the immediately previous week’s recipe IDs and prefer variety between dish families; unlimited unique weeks are not promised. Uncooked meals can be swapped after shopping; already-recorded purchases remain in pantry and only additional groceries are charged against the remaining estimated budget. Cooked meals cannot be swapped. Protein changes regenerate ingredients, instructions and nutrition estimates. Halal/kosher continue to use the existing plant-based restriction. Prices and nutrition remain estimates.
+
+The older deployment notes below predate the Worker/D1 hosting path and are retained as historical context.
+
 React/Tailwind client and Express API with persistent PostgreSQL accounts, profiles, pantry quantities, weekly plans and chat history. This rebuild starts from the recovered static prototype. It is **not** a recovery of the missing 29 files and is not claimed production-ready.
 
 ## Run locally
