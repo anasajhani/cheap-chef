@@ -1,3 +1,7 @@
+# Meal variety update — September 22, 2026
+
+Local checks: the original nine tests passed; three additional planner tests passed for Indian/British week rotation, savory lunch/dinner slots, protein/allergen constraints, and post-purchase swap accounting. Production frontend and Worker builds passed. No live browser signup, production database lifecycle or paid AI calls were performed for this update.
+
 # Verification — September 10, 2026
 
 ## Passed locally

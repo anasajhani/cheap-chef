@@ -25,15 +25,66 @@ export const ingredients = {
  cinnamon:{name:'Ground cinnamon',pack:40,usd:1.5,cad:2,kcal:247,protein:4,carbs:81,fat:1,allergens:[]}
 };
 export function nutrients(items){const result={kcal:0,protein:0,carbs:0,fat:0};for(const [id,g] of Object.entries(items))for(const k of Object.keys(result))result[k]+=ingredients[id][k]*g/100;return Object.fromEntries(Object.entries(result).map(([k,v])=>[k,Math.round(v)]));}
+
+Object.assign(ingredients, {
+ turkey:{name:'Lean ground turkey',pack:500,usd:5,cad:7,kcal:150,protein:20,carbs:0,fat:8,allergens:[]},
+ beef:{name:'Lean ground beef',pack:500,usd:6,cad:8,kcal:172,protein:21,carbs:0,fat:10,allergens:[]},
+ fish:{name:'Boneless white fish',pack:500,usd:6,cad:8,kcal:85,protein:18,carbs:0,fat:1,allergens:['fish']},
+ onion:{name:'Onions',pack:1000,usd:2,cad:3,kcal:40,protein:1,carbs:9,fat:0,allergens:[]},
+ spinach:{name:'Frozen spinach',pack:400,usd:2,cad:3,kcal:23,protein:3,carbs:4,fat:0,allergens:[]},
+ ginger:{name:'Fresh ginger',pack:100,usd:1,cad:1.5,kcal:80,protein:2,carbs:18,fat:1,allergens:[]},
+ garlic:{name:'Garlic',pack:100,usd:1,cad:1.5,kcal:149,protein:6,carbs:33,fat:1,allergens:[]},
+ garam:{name:'Garam masala (check label)',pack:40,usd:2,cad:3,kcal:300,protein:10,carbs:50,fat:10,allergens:['mustard']},
+ peas:{name:'Frozen peas',pack:500,usd:1.5,cad:2,kcal:81,protein:5,carbs:14,fat:0,allergens:[]}
+});
+export const cuisines=['American','Italian','Mexican','Middle Eastern','Asian','Indian','British'];
+export const proteinNames={chicken:'Chicken',turkey:'Turkey',beef:'Beef',fish:'White fish',tofu:'Tofu',chickpeas:'Chickpea',lentils:'Lentil',beans:'Black bean'};
+const plants=['tofu','chickpeas','lentils','beans'];
 const recipes=[];
-const flavors=[['Italian','herbs','herbed tomato'],['Mexican','cumin','smoky cumin'],['Middle Eastern','paprika','paprika tomato'],['Asian','curry','curried']];
-for(const protein of ['chickpeas','beans','lentils','tofu','chicken'])for(const grain of ['rice','pasta','quinoa','potatoes'])for(const [cuisine,spice,flavor] of flavors){
- const items={[grain]:grain==='potatoes'?320:85,[protein]:170,vegetables:180,tomatoes:100,oil:8,[spice]:2};
- const id=`${protein}-${grain}-${spice}`;
- recipes.push({id,name:`${flavor[0].toUpperCase()+flavor.slice(1)} ${protein==='beans'?'black bean':protein} ${grain==='pasta'?'pasta':grain==='potatoes'?'potato plate':grain+' bowl'}`,cuisine,minutes:35,equipment:['stovetop','knife'],vegan:protein!=='chicken',items,nutrition:nutrients(items),image:'/assets/meal-prep.png',imageNote:'Illustrative meal-prep photo; the finished recipe will differ.',steps:[grain==='potatoes'?'Cut potatoes into 2 cm cubes. Cover with water in a saucepan; boil for 15–20 minutes until fork-tender, then drain.':`Bring water to a boil and cook the ${grain} according to the package directions, usually 12–20 minutes. Drain any excess water.`,protein==='chicken'?'Use a separate board for raw chicken. Cut into small pieces, wash hands and clean surfaces, then heat the measured oil in a pan and cook the chicken until the center reaches 165°F (74°C).':protein==='tofu'?'Drain the tofu and cut into cubes. Heat the measured oil in a large pan and cook the tofu for 6–8 minutes, turning gently.':'Drain and rinse the canned legumes. Heat the measured oil in a large pan and add them.',`Add the frozen vegetables, crushed tomatoes and measured ${ingredients[spice].name.toLowerCase()}. Cover and simmer for 8–10 minutes, stirring until the vegetables are hot throughout.`,`Combine with the cooked ${grain} and serve. Refrigerate leftovers promptly.`]});
+function cookProtein(protein){
+ if(protein==='chicken')return 'Use a separate board for raw chicken. Cut into bite-size pieces, wash hands and clean surfaces. Cook in the measured oil until the thickest piece reaches 165°F (74°C).';
+ if(protein==='turkey'||protein==='beef')return `Brown the ground ${protein} in the measured oil, breaking it into small pieces. Check with a food thermometer: ${protein==='turkey'?'165°F (74°C)':'160°F (71°C)'}.`;
+ if(protein==='fish')return 'Check fish for bones. Cook in the measured oil, turning carefully, until its center reaches 145°F (63°C); flake into large pieces.';
+ if(protein==='tofu')return 'Drain and cube the tofu. Cook in the measured oil for 6–8 minutes, turning until lightly golden.';
+ return 'Drain and rinse the canned legumes. Warm them in the measured oil for 3–4 minutes.';
 }
+function addMain(family,cuisine,title,grain,spice,method='simmer',options={}){
+ for(const protein of options.proteins||Object.keys(proteinNames)){
+  const items={[grain]:grain==='potatoes'?300:75,[protein]:170,vegetables:160,onion:60,garlic:5,oil:7,[spice]:2,...(method==='pilaf'?{peas:80}:{tomatoes:120}),...(options.spinach?{spinach:100}:{}),...(cuisine==='Indian'?{ginger:8}:{})};
+  const grainStep=grain==='potatoes'?'Cut the potatoes into small, even cubes. Boil in water for 15–20 minutes until fork-tender; drain.':`Cook the measured ${grain} according to its package directions, using water. Drain excess water.`;
+  let finish=method==='mash'?'Mash the cooked potatoes with a splash of hot water. Spoon over the thick vegetable and protein filling; serve with the vegetables.':method==='pilaf'?`Fold the cooked ${grain} into the seasoned protein and vegetables. Cover on low heat for 2 minutes, then fluff and serve.`:`Serve the thick sauce and protein over the cooked ${grain}.`;
+  recipes.push({id:`${family}-${protein}`,family,protein,mealType:'main',name:title.replace('{protein}',proteinNames[protein]),cuisine,minutes:method==='mash'?40:35,equipment:['stovetop','knife'],vegan:plants.includes(protein),items,nutrition:nutrients(items),image:'/assets/meal-prep.png',imageNote:'Illustrative meal-prep photo; not a photograph of this dish.',steps:[grainStep,cookProtein(protein),`Transfer the protein to a clean plate. In the same pan, soften the chopped onion and garlic${cuisine==='Indian'?' and grated ginger':''} with a splash of water for 5 minutes. Stir in the measured ${ingredients[spice].name.toLowerCase()} for 30 seconds.`,`Add the vegetables${method==='pilaf'?' and peas':', crushed tomatoes'}${options.spinach?' and spinach':''}, plus 100 ml water. Simmer for 8–10 minutes until vegetables are cooked and the sauce thickens. Return the cooked protein and heat through.`,finish,'Refrigerate leftovers promptly. Use the ingredient quantities shown for your portion; water can be adjusted to prevent sticking.']});
+ }
+}
+// Named dishes with protein-specific instructions; adaptations are labeled explicitly.
+for(const row of [
+ ['masala','Indian','{protein} tomato masala with rice','rice','garam','simmer'],
+ ['saag','Indian','{protein} saag-style spinach with rice','rice','cumin','simmer',{spinach:true}],
+ ['keema','Indian','{protein} keema-style peas and potatoes','potatoes','garam','pilaf'],
+ ['pulao','Indian','{protein} and vegetable pulao-style rice','rice','cumin','pilaf'],
+ ['aloo','Indian','{protein} aloo-style potato curry','potatoes','curry','simmer'],
+ ['ginger-curry','Indian','Ginger {protein} curry with quinoa','quinoa','garam','simmer'],
+ ['dal','Indian','{protein} dal-style tomato stew with rice','rice','cumin','simmer',{proteins:['lentils','chickpeas','beans']}],
+ ['spinach-potato','Indian','{protein} spinach and potato masala','potatoes','garam','simmer',{spinach:true}],
+ ['cottage','British','{protein} cottage-pie-style mash bowl','potatoes','herbs','mash'],
+ ['hotpot','British','{protein} and vegetable stovetop hotpot','potatoes','herbs','simmer'],
+ ['garden','British','{protein} with garden peas and potatoes','potatoes','herbs','pilaf'],
+ ['tomato-stew','British','{protein} tomato and vegetable stew with rice','rice','herbs','simmer'],
+ ['pepper-potato','British','{protein} paprika potato hash','potatoes','paprika','pilaf'],
+ ['spinach-mash','British','{protein} spinach and potato supper','potatoes','herbs','mash',{spinach:true}],
+ ['savoury-rice','British','{protein} savoury rice with peas','rice','herbs','pilaf'],
+ ['curry-rice','British','{protein} mild curry-house rice bowl','rice','curry','simmer'],
+ ['ragu','Italian','{protein} tomato ragu with whole-wheat pasta','pasta','herbs','simmer'],
+ ['italian-stew','Italian','{protein} Italian-style vegetable stew','potatoes','herbs','simmer'],
+ ['burrito','Mexican','{protein} burrito bowl with rice and vegetables','rice','cumin','simmer'],
+ ['mexican-quinoa','Mexican','{protein} smoky quinoa bowl','quinoa','paprika','simmer'],
+ ['spiced-rice','Middle Eastern','{protein} cumin rice with vegetables','rice','cumin','pilaf'],
+ ['spiced-potato','Middle Eastern','{protein} paprika potato skillet','potatoes','paprika','simmer'],
+ ['ginger-rice','Asian','{protein} ginger vegetable rice','rice','cumin','pilaf'],
+ ['american-hash','American','{protein} vegetable and potato hash','potatoes','paprika','pilaf']
+])addMain(...row);
 for(const fruit of ['banana','berries','apple'])for(const extra of ['seeds','soyMilk'])for(const method of ['microwave','stovetop']){
  const items={oats:85,[fruit]:150,[extra]:extra==='seeds'?25:200,cinnamon:1};
- recipes.push({id:`oats-${fruit}-${extra}-${method}`,name:`${fruit==='berries'?'Berry':fruit==='apple'?'Apple':'Banana'} ${extra==='seeds'?'pumpkin-seed':'creamy soy'} porridge (${method})`,cuisine:'American',minutes:12,equipment:[method,...(fruit==='berries'?[]:['knife'])],vegan:true,items,nutrition:nutrients(items),image:'/assets/meal-prep.png',imageNote:'Illustrative meal-prep photo; not a photograph of this porridge.',steps:[`Combine the measured oats with ${extra==='soyMilk'?'the soy milk and 100 ml water':'250 ml water'} in ${method==='microwave'?'a large microwave-safe bowl':'a saucepan'}.`,method==='microwave'?'Microwave for 2 minutes, stir, then heat in 30-second intervals until cooked; use a deep bowl to avoid boiling over.':'Simmer over medium-low heat for 5–7 minutes, stirring regularly and adding water as needed.',fruit==='berries'?'Heat frozen berries according to package instructions, then stir into the porridge.':`Wash or peel the ${fruit}, slice, and stir into the porridge.`,`Add cinnamon${extra==='seeds'?' and pumpkin seeds':''}. Let cool slightly before eating.`]});
+ recipes.push({id:`oats-${fruit}-${extra}-${method}`,family:`oats-${fruit}-${extra}`,mealType:'breakfast',name:`${fruit==='berries'?'Berry':fruit==='apple'?'Apple':'Banana'} ${extra==='seeds'?'pumpkin-seed':'creamy soy'} porridge`,cuisine:'American',minutes:12,equipment:[method,...(fruit==='berries'?[]:['knife'])],vegan:true,items,nutrition:nutrients(items),image:'/assets/meal-prep.png',imageNote:'Illustrative meal-prep photo; not a photograph of this porridge.',steps:[`Combine oats with ${extra==='soyMilk'?'soy milk and 100 ml water':'250 ml water'} in a large ${method==='microwave'?'microwave-safe bowl':'saucepan'}.`,method==='microwave'?'Microwave for 2 minutes, stir, then heat in 30-second intervals until cooked.':'Simmer for 5–7 minutes, stirring and adding water as needed.',fruit==='berries'?'Heat berries according to package instructions.':`Wash or peel and slice the ${fruit}.`,`Stir in the fruit and cinnamon${extra==='seeds'?' and seeds':''}; let cool slightly.`]});
 }
 export {recipes};

@@ -7,7 +7,7 @@ const parseJSON = value => { try { return JSON.parse(value || '{}'); } catch { r
 const getCookies = request => Object.fromEntries((request.headers.get('cookie')||'').split(';').map(x=>x.trim().split('=').map(decodeURIComponent)).filter(x=>x.length===2));
 const toHex = bytes => [...new Uint8Array(bytes)].map(x=>x.toString(16).padStart(2,'0')).join('');
 const fromHex = hex => Uint8Array.from(hex.match(/.{2}/g)||[], x=>parseInt(x,16));
-const actionSchema=z.object({reply:z.string().max(5000),action:z.enum(['none','generate','swap','preferences']),mealIndex:z.number().int().min(0).max(27).nullable(),budget:z.number().min(1).max(2000).nullable(),minutes:z.number().int().min(5).max(180).nullable(),cuisines:z.array(z.enum(['American','Italian','Mexican','Middle Eastern','Asian'])).max(5).nullable()});
+const actionSchema=z.object({reply:z.string().max(5000),action:z.enum(['none','generate','swap','preferences']),mealIndex:z.number().int().min(0).max(27).nullable(),budget:z.number().min(1).max(2000).nullable(),minutes:z.number().int().min(5).max(180).nullable(),cuisines:z.array(z.enum(['American','Italian','Mexican','Middle Eastern','Asian','Indian','British'])).max(7).nullable()});
 
 async function digest(value){return toHex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)));}
 async function passwordHash(password,salt=crypto.getRandomValues(new Uint8Array(16))){
@@ -81,7 +81,7 @@ async function findStores(input){
 }
 async function askAI(env,{message,history,profile,plan,pantry}){
   if(!env.OPENAI_API_KEY||!env.OPENAI_MODEL)return{reply:'The AI chef is not connected yet. You can still use preferences, pantry, nearby stores, meal plans and swaps.',action:'none',mealIndex:null,budget:null,minutes:null,cuisines:null,mode:'unavailable'};
-  const schema={type:'object',additionalProperties:false,properties:{reply:{type:'string'},action:{type:'string',enum:['none','generate','swap','preferences']},mealIndex:{type:['integer','null']},budget:{type:['number','null']},minutes:{type:['integer','null']},cuisines:{type:['array','null'],items:{type:'string',enum:['American','Italian','Mexican','Middle Eastern','Asian']}}},required:['reply','action','mealIndex','budget','minutes','cuisines']};
+  const schema={type:'object',additionalProperties:false,properties:{reply:{type:'string'},action:{type:'string',enum:['none','generate','swap','preferences']},mealIndex:{type:['integer','null']},budget:{type:['number','null']},minutes:{type:['integer','null']},cuisines:{type:['array','null'],items:{type:'string',enum:['American','Italian','Mexican','Middle Eastern','Asian','Indian','British']}}},required:['reply','action','mealIndex','budget','minutes','cuisines']};
   const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:`Bearer ${env.OPENAI_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({model:env.OPENAI_MODEL,store:false,max_output_tokens:1200,instructions:'You are Cheap Chef. Help adults with their saved meal plan. Never loosen diet, allergy, equipment or budget limits. Do not claim live prices or inventory. Direct changes to the visible planner controls. Return structured JSON.',input:[{role:'user',content:JSON.stringify({profile:{...profile,location:undefined,stores:profile.stores.map(s=>({name:s.name}))},plan,pantry})},...history.slice(-10).map(x=>({role:x.role,content:x.text})),{role:'user',content:message}],text:{format:{type:'json_schema',name:'chef_action',strict:true,schema}}})});
   if(!response.ok)throw new Error('The AI provider could not respond. Try again later; your plan has not changed.');
   const result=await response.json(),text=result.output?.flatMap(x=>x.content||[]).find(x=>x.type==='output_text')?.text;
@@ -129,14 +129,14 @@ async function handleApi(request,env,path){
   if(path==='/api/pantry'&&method==='PUT'){const p=await readBody(request,pantrySchema);await env.DB.prepare('UPDATE users SET pantry=? WHERE id=?').bind(JSON.stringify(p),user.id).run();return json(p);}
   if(path==='/api/plans'&&method==='POST'){const old=await plans(env,user.id);return json(await savePlan(env,user.id,generate(profileSchema.parse(user.profile),user.pantry,old[0]?.data.meals||[])));}
   if(path==='/api/plans/swap'&&method==='POST'){
-    const {index}=await readBody(request,z.object({index:z.number().int().min(0).max(27)})),saved=await plans(env,user.id);
+    const {index,protein,planId}=await readBody(request,z.object({index:z.number().int().min(0).max(27),protein:z.enum(['chicken','turkey','beef','fish','tofu','chickpeas','lentils','beans']).optional(),planId:z.string().optional()})),saved=await plans(env,user.id);
     if(!saved[0])throw new Error('Generate a plan first.');
-    if(saved[0].data.purchased||saved[0].data.completed?.length)throw new Error('Start a new plan to make changes after shopping or cooking.');
-    return json(await savePlan(env,user.id,swap(saved[0].data,index,profileSchema.parse(user.profile),user.pantry,saved[1]?.data.meals||[]),saved[0].id));
+    if(planId&&planId!==saved[0].id)throw new Error('Your plan changed. Refresh before swapping.');
+    return json(await savePlan(env,user.id,swap(saved[0].data,index,profileSchema.parse(user.profile),user.pantry,saved[1]?.data.meals||[],protein),saved[0].id));
   }
   if(path==='/api/plans/purchased'&&method==='POST'){
     const saved=await plans(env,user.id),plan=saved[0]?.data;if(!plan)throw new Error('Generate a plan first.');if(plan.purchased)throw new Error('These purchases have already been added.');
-    const pantry={...user.pantry};for(const x of plan.list)pantry[x.id]=(pantry[x.id]||0)+x.buyGrams;plan.purchased=true;
+    const pantry={...user.pantry};for(const x of plan.list)pantry[x.id]=(pantry[x.id]||0)+x.buyGrams;plan.spentCents=plan.totalCents;plan.additionalCents=0;plan.purchased=true;
     await env.DB.batch([env.DB.prepare('UPDATE users SET pantry=? WHERE id=?').bind(JSON.stringify(pantry),user.id),env.DB.prepare('UPDATE plans SET data=? WHERE id=? AND user_id=?').bind(JSON.stringify(plan),saved[0].id,user.id)]);
     return json({ok:true});
   }
@@ -167,7 +167,7 @@ async function handleApi(request,env,path){
     await env.DB.prepare('DELETE FROM pending_actions WHERE user_id=?').bind(user.id).run();let p=profileSchema.parse(user.profile);
     if(a.action==='preferences'){p=profileSchema.parse({...p,...(a.budget!==null?{budget:a.budget}:{}),...(a.minutes!==null?{minutes:a.minutes}:{}),...(a.cuisines!==null?{cuisines:a.cuisines}:{})});await env.DB.prepare('UPDATE users SET profile=? WHERE id=?').bind(JSON.stringify(p),user.id).run();return json({message:'Preferences saved. Generate a new week to apply them.'});}
     if(a.action==='generate'){await savePlan(env,user.id,generate(p,user.pantry,saved[0]?.data.meals||[]));return json({message:'Your new meal plan and shopping list are ready.'});}
-    if(a.action==='swap'){if(!saved[0]||saved[0].data.purchased||saved[0].data.completed?.length)throw new Error('Generate a new plan before making this change.');await savePlan(env,user.id,swap(saved[0].data,a.mealIndex,p,user.pantry,saved[1]?.data.meals||[]),saved[0].id);return json({message:'Meal replaced and shopping list updated.'});}
+    if(a.action==='swap'){if(!saved[0])throw new Error('Generate a new plan before making this change.');await savePlan(env,user.id,swap(saved[0].data,a.mealIndex,p,user.pantry,saved[1]?.data.meals||[]),saved[0].id);return json({message:'Meal replaced and shopping list updated.'});}
     return json({message:'No change requested.'});
   }
   if(path==='/api/account'&&method==='DELETE'){
