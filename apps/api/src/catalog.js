@@ -81,7 +81,8 @@ for(const row of [
  ['spiced-rice','Middle Eastern','{protein} cumin rice with vegetables','rice','cumin','pilaf'],
  ['spiced-potato','Middle Eastern','{protein} paprika potato skillet','potatoes','paprika','simmer'],
  ['ginger-rice','Asian','{protein} ginger vegetable rice','rice','cumin','pilaf'],
- ['american-hash','American','{protein} vegetable and potato hash','potatoes','paprika','pilaf']
+ ['american-hash','American','{protein} vegetable and potato hash','potatoes','paprika','pilaf'],
+ ['shawarma-bowl','Middle Eastern','{protein} shawarma-style vegetable rice bowl','rice','cumin','pilaf']
 ])addMain(...row);
 for(const fruit of ['banana','berries','apple'])for(const extra of ['seeds','soyMilk'])for(const method of ['microwave','stovetop']){
  const items={oats:85,[fruit]:150,[extra]:extra==='seeds'?25:200,cinnamon:1};

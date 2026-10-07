@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ingredients } from '../../api/src/catalog.js';
+import { ingredients, recipes } from '../../api/src/catalog.js';
 import { defaults, profileSchema, pantrySchema, generate, swap } from '../../api/src/planner.js';
 
 const json = (data, status=200, headers={}) => new Response(JSON.stringify(data), {status, headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store',...headers}});
@@ -8,6 +8,9 @@ const getCookies = request => Object.fromEntries((request.headers.get('cookie')|
 const toHex = bytes => [...new Uint8Array(bytes)].map(x=>x.toString(16).padStart(2,'0')).join('');
 const fromHex = hex => Uint8Array.from(hex.match(/.{2}/g)||[], x=>parseInt(x,16));
 const actionSchema=z.object({reply:z.string().max(5000),action:z.enum(['none','generate','swap','preferences']),mealIndex:z.number().int().min(0).max(27).nullable(),budget:z.number().min(1).max(2000).nullable(),minutes:z.number().int().min(5).max(180).nullable(),cuisines:z.array(z.enum(['American','Italian','Mexican','Middle Eastern','Asian','Indian','British'])).max(7).nullable()});
+const socialHosts=new Set(['tiktok.com','www.tiktok.com','instagram.com','www.instagram.com','facebook.com','www.facebook.com','fb.watch','snapchat.com','www.snapchat.com']);
+const communityNames={osu:'Ohio State',campus:'Campus kitchen',home:'Home cooks'};
+const importResultSchema=z.object({title:z.string().trim().min(1).max(160),ingredients:z.array(z.string().trim().min(1).max(180)).max(40),steps:z.array(z.string().trim().min(1).max(700)).max(20)});
 
 async function digest(value){return toHex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)));}
 async function passwordHash(password,salt=crypto.getRandomValues(new Uint8Array(16))){
@@ -66,6 +69,48 @@ async function mapJSON(url,init={}){
   if(!response.ok)throw new Error('The map service is temporarily unavailable. Please try again later.');
   return response.json();
 }
+function safeImageUrl(key){return key?`/api/community/media/${encodeURIComponent(key)}`:null;}
+function displayName(profile,email){const name=String(profile?.name||'').trim();return name||`Cook ${String(email||'').slice(0,1).toUpperCase()||'C'}.`;}
+function firstText(...values){return values.find(value=>typeof value==='string'&&value.trim())?.trim()||'';}
+function classifyMeal(meal){
+  const words=`${meal.strMeal||''} ${meal.strCategory||''} ${meal.strTags||''}`.toLowerCase();
+  const style=/dessert|cake|pie|brownie|cookie|donut|fried|pizza|burger|poutine|ice cream/.test(words)?'Treat':'Everyday';
+  const ingredients=[];
+  for(let index=1;index<=20;index++){const name=String(meal[`strIngredient${index}`]||'').trim(),measure=String(meal[`strMeasure${index}`]||'').trim();if(name)ingredients.push(`${measure?`${measure} `:''}${name}`.trim());}
+  const steps=String(meal.strInstructions||'').split(/\r?\n|(?<=[.!?])\s+(?=[A-Z0-9])/).map(x=>x.replace(/^\s*(?:\d+[.)]|[-•])\s*/, '').trim()).filter(x=>x.length>8).slice(0,18);
+  return {id:String(meal.idMeal),name:meal.strMeal||'Untitled recipe',cuisine:meal.strArea||'Global',category:meal.strCategory||'Meal',tags:String(meal.strTags||'').split(',').map(x=>x.trim()).filter(Boolean),style,image:meal.strMealThumb||'',ingredients,steps};
+}
+async function recipeLibrary(env){
+  const cached=await env.DB.prepare('SELECT data FROM recipe_cache WHERE cache_key=? AND expires_at>CURRENT_TIMESTAMP').bind('themealdb-library').first();
+  if(cached)return parseJSON(cached.data).recipes||[];
+  const response=await fetch('https://www.themealdb.com/api/json/v1/1/search.php?s=');
+  if(!response.ok)throw new Error('The recipe library is temporarily unavailable. Please try again later.');
+  const result=await response.json(),library=(result.meals||[]).map(classifyMeal).filter(x=>x.image&&x.ingredients.length&&x.steps.length);
+  if(library.length<200)throw new Error('The recipe library is being refreshed. Please try again shortly.');
+  await env.DB.prepare('INSERT INTO recipe_cache(cache_key,data,expires_at) VALUES(?,?,?) ON CONFLICT(cache_key) DO UPDATE SET data=excluded.data,expires_at=excluded.expires_at').bind('themealdb-library',JSON.stringify({recipes:library}),new Date(Date.now()+6*3600000).toISOString()).run();
+  return library;
+}
+async function socialMetadata(url){
+  try{
+    const response=await fetch(`https://noembed.com/embed?${new URLSearchParams({url})}`);
+    if(!response.ok)return {};
+    const data=await response.json();
+    return {title:firstText(data.title,data.author_name),thumbnail:firstText(data.thumbnail_url)};
+  }catch{return {};}
+}
+async function structureImportedRecipe(env,{url,caption,title}){
+  const fallback={title:title||'Imported social recipe',ingredients:[],steps:[]};
+  if(!caption.trim())return fallback;
+  if(!env.OPENAI_API_KEY||!env.OPENAI_MODEL){
+    const lines=caption.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+    return {title:title||lines[0]?.slice(0,160)||fallback.title,ingredients:lines.filter(x=>/^[-•*]|^\d+\s*(?:x|cup|tbsp|tsp|oz|g|lb)/i.test(x)).slice(0,40),steps:lines.filter(x=>/^\d+[.)]/.test(x)).map(x=>x.replace(/^\d+[.)]\s*/, '')).slice(0,20)};
+  }
+  const schema={type:'object',additionalProperties:false,properties:{title:{type:'string'},ingredients:{type:'array',items:{type:'string'},maxItems:40},steps:{type:'array',items:{type:'string'},maxItems:20}},required:['title','ingredients','steps']};
+  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:`Bearer ${env.OPENAI_API_KEY}`,'content-type':'application/json'},body:JSON.stringify({model:env.OPENAI_MODEL,store:false,max_output_tokens:1000,instructions:'Turn only the user-provided public social recipe caption into a concise recipe. Do not invent ingredients, quantities, temperatures, timings or steps. If information is missing, omit it. Return structured JSON.',input:JSON.stringify({title,caption,url}),text:{format:{type:'json_schema',name:'imported_recipe',strict:true,schema}}})});
+  if(!response.ok)return fallback;
+  const data=await response.json(),text=data.output?.flatMap(x=>x.content||[]).find(x=>x.type==='output_text')?.text;
+  return text?importResultSchema.parse(JSON.parse(text)):fallback;
+}
 async function findStores(input){
   let {country,location,lat,lon}=input;
   if(lat===undefined){
@@ -92,7 +137,23 @@ async function askAI(env,{message,history,profile,plan,pantry}){
 async function handleApi(request,env,path){
   const method=request.method;
   if(path==='/api/health')return json({ok:true});
-  if(path==='/api/config')return json({ai:!!(env.OPENAI_API_KEY&&env.OPENAI_MODEL),ingredients,defaults});
+  if(path==='/api/config')return json({ai:!!(env.OPENAI_API_KEY&&env.OPENAI_MODEL),ingredients,defaults,plannerRecipeCount:recipes.length,communityNames});
+  if(path==='/api/recipes'&&method==='GET'){
+    const library=await recipeLibrary(env);
+    return json({recipes:library,source:'TheMealDB',note:'Recipe images and directions are supplied by the public recipe library. “Everyday” and “Treat” are browsing labels, not medical or nutrition advice.'},200,{'cache-control':'public, max-age=600'});
+  }
+  if(path==='/api/community/posts'&&method==='GET'){
+    const url=new URL(request.url),community=url.searchParams.get('community')||'osu';
+    if(!communityNames[community])throw new Error('Choose a valid community.');
+    const viewer=await currentUser(request,env),rows=(await env.DB.prepare(`SELECT p.id,p.community_slug,p.recipe_id,p.meal_name,p.caption,p.image_key,p.created_at,u.email,u.profile,COUNT(l.post_id) AS likes,(SELECT COUNT(*) FROM community_tries tr WHERE tr.community_slug=p.community_slug AND tr.meal_name=p.meal_name) AS tries,EXISTS(SELECT 1 FROM community_likes mine WHERE mine.post_id=p.id AND mine.user_id=?) AS liked,EXISTS(SELECT 1 FROM community_tries mineTry WHERE mineTry.community_slug=p.community_slug AND mineTry.meal_name=p.meal_name AND mineTry.user_id=?) AS tried FROM community_posts p JOIN users u ON u.id=p.user_id LEFT JOIN community_likes l ON l.post_id=p.id WHERE p.community_slug=? GROUP BY p.id ORDER BY p.created_at DESC LIMIT 60`).bind(viewer?.id||'',viewer?.id||'',community).all()).results;
+    return json({community,name:communityNames[community],posts:rows.map(row=>({...row,author:displayName(parseJSON(row.profile),row.email),imageUrl:safeImageUrl(row.image_key),likes:Number(row.likes),tries:Number(row.tries),liked:!!row.liked,tried:!!row.tried}))});
+  }
+  if(path.startsWith('/api/community/media/')&&method==='GET'){
+    const key=decodeURIComponent(path.slice('/api/community/media/'.length));
+    if(!key.startsWith('community/')||!env.MEDIA)return json({error:'Image not found.'},404);
+    const object=await env.MEDIA.get(key);if(!object)return json({error:'Image not found.'},404);
+    return new Response(object.body,{headers:{'content-type':object.httpMetadata?.contentType||'image/jpeg','cache-control':'public, max-age=86400'}});
+  }
   const credentials=z.object({email:z.string().email().max(254).transform(x=>x.toLowerCase()),password:z.string().min(12).max(128)});
   if(path==='/api/register'&&method==='POST'){
     const ip=request.headers.get('cf-connecting-ip')||'unknown';if(!await checkLimit(env,`auth:${ip}`,20,15*60000))return json({error:'Too many sign-in attempts. Try again in 15 minutes.'},429);
@@ -113,12 +174,64 @@ async function handleApi(request,env,path){
   const user=await currentUser(request,env);
   if(!user)return json({error:'Please sign in.'},401);
   if(path==='/api/me'&&method==='GET'){
-    const savedPlans=await plans(env,user.id),chats=(await env.DB.prepare('SELECT role,text FROM chats WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 24').bind(user.id).all()).results.reverse();
-    return json({email:user.email,profile:user.profile,pantry:user.pantry,plan:savedPlans[0]?{id:savedPlans[0].id,...savedPlans[0].data}:null,chats});
+    const savedPlans=await plans(env,user.id),chats=(await env.DB.prepare('SELECT role,text FROM chats WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 24').bind(user.id).all()).results.reverse(),savedRecipeIds=(await env.DB.prepare('SELECT meal_id FROM saved_recipes WHERE user_id=? ORDER BY created_at DESC').bind(user.id).all()).results.map(x=>x.meal_id),imports=(await env.DB.prepare('SELECT id,source_url,title,ingredients,steps,source_caption,created_at FROM recipe_imports WHERE user_id=? ORDER BY created_at DESC LIMIT 24').bind(user.id).all()).results.map(x=>({...x,ingredients:parseJSON(x.ingredients),steps:parseJSON(x.steps)}));
+    return json({email:user.email,profile:user.profile,pantry:user.pantry,plan:savedPlans[0]?{id:savedPlans[0].id,...savedPlans[0].data}:null,chats,savedRecipeIds,imports});
   }
   if(path==='/api/logout'&&method==='POST'){
     const raw=getCookies(request).cc_session;if(raw)await env.DB.prepare('DELETE FROM sessions WHERE token=?').bind(await digest(raw)).run();
     return json({ok:true},200,{'set-cookie':'cc_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0'});
+  }
+  if(path==='/api/recipe-saves'&&method==='POST'){
+    const {mealId}=await readBody(request,z.object({mealId:z.string().regex(/^\d{5,}$/)}));
+    await env.DB.prepare('INSERT OR IGNORE INTO saved_recipes(user_id,meal_id) VALUES(?,?)').bind(user.id,mealId).run();
+    return json({ok:true});
+  }
+  if(path==='/api/recipe-saves'&&method==='DELETE'){
+    const {mealId}=await readBody(request,z.object({mealId:z.string().regex(/^\d{5,}$/)}));
+    await env.DB.prepare('DELETE FROM saved_recipes WHERE user_id=? AND meal_id=?').bind(user.id,mealId).run();
+    return json({ok:true});
+  }
+  if(path==='/api/imports'&&method==='POST'){
+    if(!await checkLimit(env,`imports:${user.id}`,8,3600000))return json({error:'You have reached the hourly recipe-import limit. Please try again later.'},429);
+    const value=await readBody(request,z.object({url:z.string().url().max(2000),caption:z.string().max(6000).default('')}));
+    const parsed=new URL(value.url);if(!socialHosts.has(parsed.hostname.toLowerCase()))throw new Error('Use a public TikTok, Instagram, Facebook or Snapchat link.');
+    const metadata=await socialMetadata(value.url),recipe=await structureImportedRecipe(env,{url:value.url,caption:value.caption,title:metadata.title});
+    const id=crypto.randomUUID();
+    await env.DB.prepare('INSERT INTO recipe_imports(id,user_id,source_url,title,ingredients,steps,source_caption) VALUES(?,?,?,?,?,?,?)').bind(id,user.id,value.url,recipe.title,JSON.stringify(recipe.ingredients),JSON.stringify(recipe.steps),value.caption).run();
+    return json({id,source_url:value.url,title:recipe.title,ingredients:recipe.ingredients,steps:recipe.steps,source_caption:value.caption,thumbnail:metadata.thumbnail||null,needsCaption:!value.caption.trim(),note:value.caption.trim()?'Saved from the text you provided. Check amounts, allergens and food-safety details before cooking.':'We could only read basic public link information. Paste the caption, ingredient list or spoken recipe text to create accurate ingredients and steps.'},201);
+  }
+  if(path==='/api/community/posts'&&method==='POST'){
+    if(!await checkLimit(env,`community-posts:${user.id}`,6,3600000))return json({error:'Please wait before creating another community post.'},429);
+    const form=await request.formData(),community=String(form.get('community')||'osu'),mealName=String(form.get('mealName')||'').trim(),caption=String(form.get('caption')||'').trim(),recipeId=String(form.get('recipeId')||'').trim()||null,file=form.get('photo');
+    if(!communityNames[community])throw new Error('Choose a valid community.');
+    if(!mealName||mealName.length>160)throw new Error('Add the meal name before posting.');
+    if(caption.length>700)throw new Error('Keep your caption under 700 characters.');
+    let imageKey=null;
+    if(file&&typeof file!=='string'){
+      if(!env.MEDIA)throw new Error('Photo sharing is not available yet. Please try again shortly.');
+      if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024)throw new Error('Use a JPG, PNG or WebP photo no larger than 5 MB.');
+      const extension=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg';imageKey=`community/${community}/${user.id}/${crypto.randomUUID()}.${extension}`;
+      await env.MEDIA.put(imageKey,await file.arrayBuffer(),{httpMetadata:{contentType:file.type}});
+    }
+    const id=crypto.randomUUID();
+    await env.DB.prepare('INSERT INTO community_posts(id,community_slug,user_id,recipe_id,meal_name,caption,image_key) VALUES(?,?,?,?,?,?,?)').bind(id,community,user.id,recipeId,mealName,caption,imageKey).run();
+    return json({ok:true,id},201);
+  }
+  const likeMatch=path.match(/^\/api\/community\/posts\/([0-9a-f-]{36})\/like$/);
+  if(likeMatch&&method==='POST'){
+    const post=await env.DB.prepare('SELECT id FROM community_posts WHERE id=?').bind(likeMatch[1]).first();if(!post)throw new Error('That community post no longer exists.');
+    const previous=await env.DB.prepare('SELECT 1 FROM community_likes WHERE post_id=? AND user_id=?').bind(post.id,user.id).first();
+    if(previous)await env.DB.prepare('DELETE FROM community_likes WHERE post_id=? AND user_id=?').bind(post.id,user.id).run();
+    else await env.DB.prepare('INSERT INTO community_likes(post_id,user_id) VALUES(?,?)').bind(post.id,user.id).run();
+    return json({liked:!previous});
+  }
+  const tryMatch=path.match(/^\/api\/community\/posts\/([0-9a-f-]{36})\/try$/);
+  if(tryMatch&&method==='POST'){
+    const post=await env.DB.prepare('SELECT community_slug,meal_name FROM community_posts WHERE id=?').bind(tryMatch[1]).first();if(!post)throw new Error('That community post no longer exists.');
+    const previous=await env.DB.prepare('SELECT 1 FROM community_tries WHERE community_slug=? AND meal_name=? AND user_id=?').bind(post.community_slug,post.meal_name,user.id).first();
+    if(previous)await env.DB.prepare('DELETE FROM community_tries WHERE community_slug=? AND meal_name=? AND user_id=?').bind(post.community_slug,post.meal_name,user.id).run();
+    else await env.DB.prepare('INSERT INTO community_tries(community_slug,meal_name,user_id) VALUES(?,?,?)').bind(post.community_slug,post.meal_name,user.id).run();
+    return json({tried:!previous});
   }
   if(path==='/api/profile'&&method==='PUT'){
     const p=await readBody(request,profileSchema),trusted=[...(user.profile.stores||[])];
