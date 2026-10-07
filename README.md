@@ -1,4 +1,4 @@
-# Cheap Chef — rebuilt beta
+# Cheap Chef Affordable — rebuilt beta
 
 ## Meal variety update — September 22, 2026
 
