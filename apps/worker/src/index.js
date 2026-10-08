@@ -137,7 +137,7 @@ async function askAI(env,{message,history,profile,plan,pantry}){
 async function handleApi(request,env,path){
   const method=request.method;
   if(path==='/api/health')return json({ok:true});
-  if(path==='/api/config')return json({ai:!!(env.OPENAI_API_KEY&&env.OPENAI_MODEL),ingredients,defaults,plannerRecipeCount:recipes.length,communityNames});
+  if(path==='/api/config')return json({ai:!!(env.OPENAI_API_KEY&&env.OPENAI_MODEL),photoUploads:!!env.MEDIA,ingredients,defaults,plannerRecipeCount:recipes.length,communityNames});
   if(path==='/api/recipes'&&method==='GET'){
     const library=await recipeLibrary(env);
     return json({recipes:library,source:'TheMealDB',note:'Recipe images and directions are supplied by the public recipe library. “Everyday” and “Treat” are browsing labels, not medical or nutrition advice.'},200,{'cache-control':'public, max-age=600'});
