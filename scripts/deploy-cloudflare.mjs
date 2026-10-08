@@ -3,7 +3,6 @@ import { writeFileSync } from 'node:fs';
 
 const configPath = 'wrangler.generated.json';
 const wrangler = ['dlx', 'wrangler@4'];
-const bucketName = 'cheap-chef-affordable-media';
 
 function run(args, options = {}) {
   return execFileSync('pnpm', [...wrangler, ...args], {
@@ -28,16 +27,9 @@ const config = {
     database_name: 'cheap-chef-affordable-db',
     migrations_dir: 'drizzle',
   }],
-  r2_buckets: [{ binding: 'MEDIA', bucket_name: bucketName }],
   vars: { AI_DAILY_LIMIT: '20' },
 };
 
 writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
-
-const buckets = run(['r2', 'bucket', 'list'], { capture: true });
-if (!buckets.includes(bucketName)) {
-  run(['r2', 'bucket', 'create', bucketName]);
-}
-
 run(['deploy', '--config', configPath]);
 run(['d1', 'migrations', 'apply', 'DB', '--remote', '--config', configPath]);
