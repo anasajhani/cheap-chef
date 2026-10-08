@@ -2,6 +2,7 @@
   "name": "cheap-chef",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.19.0",
   "scripts": {
     "dev": "concurrently -k \"node --env-file-if-exists=.env apps/api/src/server.js\" \"vite --config apps/web/vite.config.js\"",
     "build": "vite build --config apps/web/vite.config.js && node scripts/build-worker.mjs",
