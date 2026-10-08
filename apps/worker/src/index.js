@@ -83,9 +83,13 @@ function classifyMeal(meal){
 async function recipeLibrary(env){
   const cached=await env.DB.prepare('SELECT data FROM recipe_cache WHERE cache_key=? AND expires_at>CURRENT_TIMESTAMP').bind('themealdb-library').first();
   if(cached)return parseJSON(cached.data).recipes||[];
-  const response=await fetch('https://www.themealdb.com/api/json/v1/1/search.php?s=');
-  if(!response.ok)throw new Error('The recipe library is temporarily unavailable. Please try again later.');
-  const result=await response.json(),library=(result.meals||[]).map(classifyMeal).filter(x=>x.image&&x.ingredients.length&&x.steps.length);
+  const results=await Promise.all('abcdefghijklmnopqrstuvwxyz'.split('').map(async letter=>{
+    const response=await fetch(`https://www.themealdb.com/api/json/v1/1/search.php?f=${letter}`);
+    if(!response.ok)return [];
+    return (await response.json()).meals||[];
+  }));
+  const unique=new Map(results.flat().map(meal=>[String(meal.idMeal),meal]));
+  const library=[...unique.values()].map(classifyMeal).filter(x=>x.image&&x.ingredients.length&&x.steps.length);
   if(library.length<200)throw new Error('The recipe library is being refreshed. Please try again shortly.');
   await env.DB.prepare('INSERT INTO recipe_cache(cache_key,data,expires_at) VALUES(?,?,?) ON CONFLICT(cache_key) DO UPDATE SET data=excluded.data,expires_at=excluded.expires_at').bind('themealdb-library',JSON.stringify({recipes:library}),new Date(Date.now()+6*3600000).toISOString()).run();
   return library;
