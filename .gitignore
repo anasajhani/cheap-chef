@@ -9,3 +9,5 @@ node_modules/
 
 .data/
 apps/web/build/
+.wrangler/
+wrangler.generated.json
