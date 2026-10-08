@@ -32,5 +32,5 @@ const config = {
 };
 
 writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
-run(['d1', 'migrations', 'apply', 'DB', '--remote', '--config', configPath]);
 run(['deploy', '--config', configPath]);
+run(['d1', 'migrations', 'apply', 'DB', '--remote', '--config', configPath]);
