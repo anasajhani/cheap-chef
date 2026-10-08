@@ -20,6 +20,17 @@ pnpm dev
 
 Open the Vite address printed by the command (normally http://localhost:5173). The API listens on port 4000. With DATABASE_URL empty, embedded PostgreSQL (PGlite) persists to `.data/`; do not delete that directory unless you intend to erase local accounts. A PostgreSQL server can be supplied via DATABASE_URL instead.
 
+## Cloudflare deployment from GitHub
+
+The production Worker build uses D1 for account/community data, R2 for community photos, and Cloudflare Workers Static Assets for the React client. Connect this repository's `main` branch in Cloudflare Workers Builds, then use:
+
+```text
+Build command: pnpm install --frozen-lockfile --ignore-scripts && pnpm check
+Deploy command: pnpm deploy:cloudflare
+```
+
+The deployment script idempotently creates the `cheap-chef-affordable-db` D1 database and `cheap-chef-affordable-media` R2 bucket, applies the SQL migrations, and deploys the Worker. Cloudflare's build must expose `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; its Git integration normally provisions these. Add `OPENAI_API_KEY` and `OPENAI_MODEL` as runtime secrets only if AI chat is enabled.
+
 ```sh
 pnpm check
 pnpm build
