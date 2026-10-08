@@ -29,7 +29,7 @@ Build command: pnpm install --frozen-lockfile --ignore-scripts && pnpm check
 Deploy command: pnpm deploy:cloudflare
 ```
 
-The deployment script idempotently creates the `cheap-chef-affordable-db` D1 database and `cheap-chef-affordable-media` R2 bucket, applies the SQL migrations, and deploys the Worker. Cloudflare's Git integration automatically creates the deployment token used by Wrangler. Add `OPENAI_API_KEY` and `OPENAI_MODEL` as runtime secrets only if AI chat is enabled.
+The deployment script uses Cloudflare's automatic resource provisioning to create and bind D1 database and R2 photo storage, applies the SQL migrations, and deploys the Worker. Cloudflare's Git integration automatically creates the deployment token used by Wrangler. Add `OPENAI_API_KEY` and `OPENAI_MODEL` as runtime secrets only if AI chat is enabled.
 
 ```sh
 pnpm check
