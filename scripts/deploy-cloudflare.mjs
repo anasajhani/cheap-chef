@@ -34,8 +34,8 @@ const config = {
 
 writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
 
-const buckets = JSON.parse(run(['r2', 'bucket', 'list', '--json'], { capture: true }));
-if (!buckets.some((item) => (item.name || item.bucket_name) === bucketName)) {
+const buckets = run(['r2', 'bucket', 'list'], { capture: true });
+if (!buckets.includes(bucketName)) {
   run(['r2', 'bucket', 'create', bucketName]);
 }
 
