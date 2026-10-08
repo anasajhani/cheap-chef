@@ -13,10 +13,6 @@ function run(args, options = {}) {
   });
 }
 
-if (!process.env.CLOUDFLARE_API_TOKEN || !process.env.CLOUDFLARE_ACCOUNT_ID) {
-  throw new Error('Cloudflare deployment credentials are not available to the build.');
-}
-
 let databases = JSON.parse(run(['d1', 'list', '--json'], { capture: true }));
 let database = databases.find((item) => item.name === databaseName);
 if (!database) {
